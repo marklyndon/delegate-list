@@ -136,6 +136,9 @@
             var $institution = aek.create('li').appendTo($ul);
             var $institutionHeader = aek.create('div.dataHeader', 'Institution').appendTo($institution);
             var $institutionHeader = aek.create('div.dataContent', data[2]).appendTo($institution);
+            var $address = aek.create('li').appendTo($ul);
+            var $addressHeader = aek.create('div.dataHeader', 'Address').appendTo($address);
+            var $addressHeader = aek.create('div.dataContent', data[1].address).appendTo($address);
             var $country = aek.create('li').appendTo($ul);
             var $countryHeader = aek.create('div.dataHeader', 'Country').appendTo($country);
             var $countryHeader = aek.create('div.dataContent', data[1].country).appendTo($country);
