@@ -127,6 +127,7 @@
             var data = delegatesMap[parseInt($(this).attr('relativeIndex'))];
             var $ul = aek.create('ul.listview').appendTo($subpage);
             var $name = aek.create('li.theme-b', data[1].name + ' ' + data[1].lastName).appendTo($ul);
+              // comment out any feature which is not required
             var $job = aek.create('li').appendTo($ul);
             var $jobHeader = aek.create('div.dataHeader', 'Job').appendTo($job);
             var $jobHeader = aek.create('div.dataContent', data[1].jobTitle).appendTo($job);
