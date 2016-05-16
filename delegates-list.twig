@@ -1,0 +1,295 @@
+{% extends "master.html" %}
+
+{% block init %}{{ aek.set_aek_version(1.4) }}{% endblock %}
+
+{% block title %}Delegates list{% endblock %}
+
+{% block main_content %}
+
+  {{ aek.add_lib("aek-cache") }}
+  {{ aek.add_lib("aek-ajax") }}
+  {{ aek.add_lib("aek-subpages") }}
+
+  {% if aek.action == "getDelegates" %}
+    
+    {% set profile = 626 %}
+    {% set delegatesServices = aek.extension("DelegateServices") %}
+    {% set institutions = [] %}
+    {% set searchTerm = aek.request("search") %}
+    {% if searchTerm %}
+      {% set institutions = delegatesServices.searchByInstitution(searchTerm, profile, true).institutions.institution|as_array %}
+    {% else %}
+      {% set institutions = delegatesServices.listByInstitution(profile, true).institutions.institution|as_array %}
+    {% endif %}
+
+    {{ aek.json({ "delegates":institutions }) }}
+
+
+
+  {% endif %}
+
+  <script type="text/javascript" data-defer="true">
+    // global delegates map [[id, object]]
+    var delegatesMap = [];
+    var delegatesRaw;
+    var hitTheLimit = false;
+    var offset = 0;
+    
+    $(document).ready(function() {
+      var cache = aek.cache();
+      aek.ajax({
+        action:'getDelegates',
+        beforeSend: function() {
+          offset = 0;
+          $('#resultsContainer').empty();
+          aek.create('li', 'Fetching delegates . .', { 'id':'loadingText' }).appendTo($('#resultsContainer'));
+          var $li = aek.create('li', { 'id':'loadingHolder' }).appendTo($('#resultsContainer'));
+          $li.aek('loading');
+        },
+        data:{ },
+        success:function(data) {
+          if(data.delegates.length > 0) {
+            handleResults(data.delegates);
+          // to handle responses that only return a single object
+          } else if(data.delegates.delegates.delegate.length > 0) {
+            handleResults(data);
+          } else {
+            aek.create('li.theme-r', 'Failed to find any delegates!', { 'id':'errorContainer' }).appendTo($('#resultsContainer'));
+          }          
+        }
+      });
+      
+      
+      
+      $('#searchInput').click(function() {
+        $('#searchInput').val('');
+      });
+      
+      $('#searchButton').click(function() {
+        var search = $('#searchInput').val();
+        aek.ajax({
+          action:'getDelegates',
+          beforeSend: function() {
+            $('#resultsContainer').empty();
+            offset = 0;
+            aek.create('li', 'Fetching delegates . .', { 'id':'loadingText' }).appendTo($('#resultsContainer'));
+            var $li = aek.create('li', { 'id':'loadingHolder' }).appendTo($('#resultsContainer'));
+            $li.aek('loading');
+          },
+          data:{ search:search },
+          success:function(data) {
+            if(data.delegates.length > 0) {
+              handleResults(data.delegates);
+            // to handle responses that only return a single object
+            } else if(data.delegates.delegates.delegate.length > 0) {
+              handleResults(data);
+            } else {
+              aek.create('li.theme-r', 'Failed to find any delegates!', { 'id':'errorContainer' }).appendTo($('#resultsContainer'));
+            }
+          }
+        });
+      });
+    });
+    
+    function handleResults(delegates) {      
+      delegatesMap = [];
+      delegatesRaw = delegates;
+      var $target = $('#resultsContainer');
+      $target.attr('resultsCount', 0);
+      $('.pageContainer').each(function() {
+        $(this).remove();
+      });
+      
+      for(var n in delegates) {
+        var resultObject = delegates[n];
+        // if(Object.prototype.toString.call(resultObject.delegates.delegate) === '[object Array]') {
+        if(Array.isArray(resultObject.delegates.delegate)) {
+          for(var m in resultObject.delegates.delegate) {
+            var delegateActual = resultObject.delegates.delegate[m];
+            delegatesMap.push([delegateActual.uID, delegateActual, resultObject.name]);
+            $target.attr('resultsCount', parseInt($target.attr('resultsCount')) + 1);
+          }          
+        } else {
+          var delegateActual = resultObject.delegates.delegate;
+          delegatesMap.push([delegateActual.uID, delegateActual, resultObject.name]);
+          $target.attr('resultsCount', parseInt($target.attr('resultsCount')) + 1);          
+        }
+      }
+      
+      for(var n in delegatesMap) {
+        var index = parseInt(n) + parseInt(offset);
+        var limit = 50 + parseInt(offset);
+        if(index < limit) {
+          var dataObject = delegatesMap[index];
+          var $li = aek.create('li', dataObject[1].name + ' ' + dataObject[1].lastName, { 'relativeIndex':index }).appendTo($target);
+          $li.aek('click', function() {
+            var $subpage = aek.create('subpage');
+            var data = delegatesMap[parseInt($(this).attr('relativeIndex'))];
+            var $ul = aek.create('ul.listview').appendTo($subpage);
+            var $name = aek.create('li.theme-b', data[1].name + ' ' + data[1].lastName).appendTo($ul);
+            var $job = aek.create('li').appendTo($ul);
+            var $jobHeader = aek.create('div.dataHeader', 'Job').appendTo($job);
+            var $jobHeader = aek.create('div.dataContent', data[1].jobTitle).appendTo($job);
+            var $department = aek.create('li').appendTo($ul);
+            var $departmentHeader = aek.create('div.dataHeader', 'Department').appendTo($department);
+            var $departmentHeader = aek.create('div.dataContent', data[1].dept).appendTo($department);
+            var $institution = aek.create('li').appendTo($ul);
+            var $institutionHeader = aek.create('div.dataHeader', 'Institution').appendTo($institution);
+            var $institutionHeader = aek.create('div.dataContent', data[2]).appendTo($institution);
+            var $country = aek.create('li').appendTo($ul);
+            var $countryHeader = aek.create('div.dataHeader', 'Country').appendTo($country);
+            var $countryHeader = aek.create('div.dataContent', data[1].country).appendTo($country);
+            var $email = aek.create('li').appendTo($ul);
+            var $emailHeader = aek.create('div.dataHeader', 'Email').appendTo($email);
+            var $emailHeader = aek.create('div.dataContent', data[1].email).appendTo($email);
+            aek.showPage($subpage);
+          });
+        }
+        
+      }
+      
+      if(parseInt($('#resultsContainer').attr('resultsCount')) > 50) {
+        var $pageContainer = aek.create('div.pageContainer').insertAfter($('#searchContainer'));
+        var $prev = aek.create('div.theme-b.customButton', 'Prev', { 'id':'pageLeft' }).appendTo($pageContainer);
+        var $next = aek.create('div.theme-b.customButton', 'Next', { 'id':'pageRight' }).appendTo($pageContainer);
+        if(offset == 0) {
+          $prev.addClass('disabled');
+        }
+        
+        if(offset + 50 >= parseInt($('#resultsContainer').attr('resultsCount'))) {
+          $next.addClass('disabled');
+        }
+      
+        $next.click(function() {
+          if(!$(this).hasClass('disabled')) {
+            var resultsCount = parseInt($('#resultsContainer').attr('resultsCount'));
+            if(parseInt(offset) + 50 + 50 >= resultsCount) {
+              offset = parseInt(offset) + (resultsCount - (parseInt(offset) + 50));
+            } else {
+              offset = parseInt(offset) + 50;
+            }
+            
+            $('#pageLeft').removeClass('disabled');
+            if(parseInt(offset) + 50 >= resultsCount) {
+              $(this).addClass('disabled');
+            }
+            
+            $('#resultsContainer').empty();
+            handleResults(delegatesRaw);
+          }
+        });
+        
+        $prev.click(function() {
+          if(!$(this).hasClass('disabled')) {
+            var resultsCount = parseInt($('#resultsContainer').attr('resultsCount'));
+            if(offset - 50 <= 0) {
+              offset = 0;
+            } else if(parseInt(offset) + 50 >= resultsCount) {
+              offset = resultsCount - 50 - (resultsCount % 50);
+            } else {
+              offset = parseInt(offset) - 50;
+            }
+            
+            $('#pageRight').removeClass('disabled');
+            if(offset == 0) {              
+              $(this).addClass('disabled');
+            }
+            
+            $('#resultsContainer').empty();
+            handleResults(delegatesRaw);
+          }
+        });
+      }      
+      
+      $('#loadingHolder').remove();
+      $('#loadingText').remove();
+    }
+  </script>
+
+
+  <div class="bodyblock flush searchContainer" id="searchContainer">
+    <input type="text" id="searchInput" />
+    <div class="theme-b customButton" id="searchButton">
+      Search
+    </div>
+  </div>
+
+  <ul class="listview" id="resultsContainer" resultsCount="0" />
+
+  <style type="text/css">
+    input#searchInput {
+      border-radius: 0;
+      float: left;
+      width: 55%;
+    }
+    
+    /** this is a bit of a hack **/
+    .pageContainer {
+      height: 3.5rem;
+    }
+    
+    .customButton#pageLeft {
+      float: left;
+    }
+    
+    .customButton {
+      border-radius: 0;
+      float: right;
+      padding: 0.5rem;
+      text-align: center;
+      width: 30%;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      -khtml-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+    
+    .customButton:hover {
+      background-color: #add8e6;
+      color: #333;
+      cursor: pointer;
+    }
+    
+    .customButton.disabled, .customButton.disabled:hover {
+      background-color: transparent;
+      border-color: #888;
+      color: #666;
+      cursor: default;
+    }
+    
+    ul.listview > li#loadingText {
+      text-align: center;
+    }
+    
+    ul.listview > li > div.dataHeader, ul.listview > li > div.dataContent {
+      font-size: 0.75rem;
+    }
+    
+    ul.listview > li > div.dataHeader {
+      color: #6f8ea4;
+      float: left;
+      font-weight: bold;
+    }
+    
+    ul.listview > li > div.dataContent {
+      float: right;
+    }
+    
+    /* hacky CSS hacks below */    
+    .loading {
+      font-size: 1rem !important;
+    }
+    
+    .loading-icon {
+      margin-top: -15px !important;
+    }
+    
+    .subpage {
+      -moz-box-flex: 1 !important;
+      position: static;
+    }
+  </style>
+
+{% endblock %}
